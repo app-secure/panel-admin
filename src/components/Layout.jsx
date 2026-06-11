@@ -4,6 +4,7 @@ import {
   Box, AppBar, Toolbar, Typography, IconButton, Avatar,
   Divider, useTheme, useMediaQuery, Menu, MenuItem,
   Button, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
+  Alert,
 } from '@mui/material';
 import {
   DashboardOutlined, PeopleOutlined, InventoryOutlined,
@@ -11,6 +12,7 @@ import {
   KeyboardArrowDown, Dashboard,
 } from '@mui/icons-material';
 import { useAuth } from '../auth/AuthContext';
+import { useContingency } from '../auth/ContingencyContext';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: <DashboardOutlined fontSize="small" />, to: '/dashboard' },
@@ -24,6 +26,7 @@ const TOPBAR_BORDER = 'rgba(255,255,255,0.08)';
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { isContingency, activeDatabase } = useContingency();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -230,6 +233,24 @@ export default function Layout() {
           minHeight: 'calc(100vh - 54px)',
         }}
       >
+        {isContingency && (
+          <Alert 
+            severity="warning" 
+            sx={{ 
+              mb: 2.5, 
+              borderRadius: 2.5, 
+              border: '1px solid rgba(237, 108, 2, 0.2)',
+              bgcolor: 'rgba(237, 108, 2, 0.08)',
+              color: '#bd5e00',
+              fontWeight: 700,
+              fontSize: '13px',
+              boxShadow: '0 2px 8px rgba(237, 108, 2, 0.08)',
+              '& .MuiAlert-icon': { color: '#bd5e00' }
+            }}
+          >
+            El sistema se encuentra en modo de contingencia preventiva (Base de datos activa: {activeDatabase}). Solo se permite la lectura de datos; las operaciones de creación, edición y desactivación están bloqueadas.
+          </Alert>
+        )}
         <Outlet />
       </Box>
     </Box>

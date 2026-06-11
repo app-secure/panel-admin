@@ -3,7 +3,7 @@ import {
   Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Paper, Chip, IconButton, Alert, Tooltip, Skeleton,
   TextField, InputAdornment, Button, Dialog, DialogContent, Divider,
-  CircularProgress,
+  CircularProgress, TablePagination,
 } from '@mui/material';
 import {
   Refresh, ShoppingCartOutlined, ReceiptLongOutlined, SearchOutlined,
@@ -15,6 +15,7 @@ import {
   getCompras, getCompra,
   getFacturacionXml, getFacturacionDescargar, getFacturacionConsultar,
 } from '../api/compras';
+import { getUsuario } from '../api/usuarios';
 
 const TEAL       = 'linear-gradient(135deg, #1e6b7a 0%, #2a7f8f 45%, #246e7c 100%)';
 const TEAL_SOLID = '#2a7f8f';
@@ -53,6 +54,10 @@ function SkeletonRows() {
 export default function ComprasPage() {
   const { data: compras, loading, error, refresh } = useApi(getCompras);
 
+  // Paginación
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+
   // ── Filtro simple por # factura ─────────────────────────────────
   const [filtro, setFiltro] = useState('');
   const listaVisible = useMemo(() => {
@@ -61,16 +66,22 @@ export default function ComprasPage() {
     return compras.filter((c) => String(c.numeroFactura).includes(filtro.trim()));
   }, [compras, filtro]);
 
+  const paginatedList = useMemo(() => {
+    return listaVisible.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [listaVisible, page, rowsPerPage]);
+
   // ── Modal detalle ────────────────────────────────────────────────
   const [openDetalle, setOpenDetalle]       = useState(false);
   const [detalle, setDetalle]               = useState(null);
   const [detalleLoading, setDetalleLoading] = useState(false);
   const [detalleError, setDetalleError]     = useState('');
   const [autorizada, setAutorizada]         = useState(null); // true | false | null
+  const [clienteInfo, setClienteInfo]       = useState(null);
 
   const verDetalle = async (c) => {
     setDetalleLoading(true);
     setDetalle(null);
+    setClienteInfo(null);
     setDetalleError('');
     setAutorizada(null);
     setOpenDetalle(true);
@@ -78,6 +89,17 @@ export default function ComprasPage() {
     try {
       const { data } = await getCompra(c.numeroFactura);
       setDetalle(data);
+
+      // Carga de información del cliente
+      if (data.idUsuario) {
+        try {
+          const userRes = await getUsuario(data.idUsuario);
+          setClienteInfo(userRes.data);
+        } catch (err) {
+          console.error('Error al cargar la información del cliente:', err);
+        }
+      }
+
       // Carga el estado de autorización en paralelo (silencioso si falla)
       getFacturacionConsultar(c.numeroFactura)
         .then(({ data: comp }) => setAutorizada(comp?.autorizada ?? null))
@@ -207,17 +229,17 @@ export default function ComprasPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {loading ? <SkeletonRows /> : !listaVisible.length ? (
+                {loading ? <SkeletonRows /> : !paginatedList.length ? (
                   <TableRow>
                     <TableCell colSpan={6} sx={{ py: 8, textAlign: 'center' }}>
                       <ReceiptLongOutlined sx={{ fontSize: 48, color: '#c5cdd6', mb: 1.5, display: 'block', mx: 'auto' }} />
                       <Typography variant="body2" color="text.secondary">
                         {filtro ? `No existe la factura #${filtro}` : 'No hay compras registradas'}
                       </Typography>
-                      {filtro && <Button size="small" onClick={() => setFiltro('')} sx={{ mt: 1, color: TEAL_SOLID }}>Ver todas</Button>}
+                      {filtro && <Button size="small" onClick={() => { setFiltro(''); setPage(0); }} sx={{ mt: 1, color: TEAL_SOLID }}>Ver todas</Button>}
                     </TableCell>
                   </TableRow>
-                ) : listaVisible.map((c, idx) => {
+                ) : paginatedList.map((c, idx) => {
                   const estadoStyle = ESTADO_STYLES[c.estado] ?? { bg: 'rgba(107,119,141,0.1)', color: '#6B7A8D' };
                   return (
                     <TableRow key={c.numeroFactura} sx={{
@@ -255,10 +277,23 @@ export default function ComprasPage() {
                       </TableCell>
                       <TableCell>
                         <Tooltip title="Ver detalle y factura">
-                          <IconButton size="small" onClick={() => verDetalle(c)}
-                            sx={{ color: TEAL_SOLID, bgcolor: 'rgba(42,127,143,0.08)', '&:hover': { bgcolor: 'rgba(42,127,143,0.18)', transform: 'scale(1.1)' } }}>
-                            <VisibilityOutlined fontSize="small" />
-                          </IconButton>
+                          <Button
+                            size="small"
+                            onClick={() => verDetalle(c)}
+                            startIcon={<VisibilityOutlined fontSize="small" />}
+                            sx={{
+                              color: TEAL_SOLID,
+                              bgcolor: 'rgba(42,127,143,0.08)',
+                              textTransform: 'none',
+                              fontWeight: 600,
+                              px: 1.5,
+                              borderRadius: 1.5,
+                              fontSize: '11px',
+                              '&:hover': { bgcolor: 'rgba(42,127,143,0.18)' }
+                            }}
+                          >
+                            Ver Detalle
+                          </Button>
                         </Tooltip>
                       </TableCell>
                     </TableRow>
@@ -267,6 +302,19 @@ export default function ComprasPage() {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={listaVisible.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            labelRowsPerPage="Filas por página:"
+          />
         </Paper>
 
         {/* ── Modal detalle + facturación ──────────────────────────── */}
@@ -299,19 +347,49 @@ export default function ComprasPage() {
               <>
                 {/* Info general */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 3 }}>
+                  {clienteInfo ? (
+                    <Box sx={{ bgcolor: 'rgba(42,127,143,0.04)', p: 2, borderRadius: 2.5, border: '1px solid rgba(42,127,143,0.15)', mb: 1 }}>
+                      <Typography variant="subtitle2" color="#1a2f40" fontWeight={800} sx={{ mb: 1.5, color: TEAL_SOLID }}>
+                        Información del Cliente
+                      </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                        <Box>
+                          <Typography variant="caption" color="#6B7A8D" display="block" sx={{ fontWeight: 600 }}>Nombre Completo</Typography>
+                          <Typography variant="body2" color="#1a2f40" fontWeight={600}>{clienteInfo.nombreCompleto}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="#6B7A8D" display="block" sx={{ fontWeight: 600 }}>Cédula</Typography>
+                          <Typography variant="body2" color="#1a2f40" fontWeight={600}>{clienteInfo.cedula}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="#6B7A8D" display="block" sx={{ fontWeight: 600 }}>Email</Typography>
+                          <Typography variant="body2" color="#1a2f40" fontWeight={600}>{clienteInfo.email}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="#6B7A8D" display="block" sx={{ fontWeight: 600 }}>Teléfono</Typography>
+                          <Typography variant="body2" color="#1a2f40" fontWeight={600}>{clienteInfo.telefono || '—'}</Typography>
+                        </Box>
+                        <Box sx={{ gridColumn: { sm: 'span 2' } }}>
+                          <Typography variant="caption" color="#6B7A8D" display="block" sx={{ fontWeight: 600 }}>Dirección</Typography>
+                          <Typography variant="body2" color="#1a2f40" fontWeight={600}>{clienteInfo.direccion || '—'}</Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="#6B7A8D" fontWeight={600}>ID Usuario</Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', bgcolor: 'rgba(0,0,0,0.04)', px: 1, py: 0.4, borderRadius: 1 }}>
+                        {detalle.idUsuario}
+                      </Typography>
+                    </Box>
+                  )}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="#6B7A8D" fontWeight={600}>ID Usuario</Typography>
-                    <Typography variant="caption" sx={{ fontFamily: 'monospace', bgcolor: 'rgba(0,0,0,0.04)', px: 1, py: 0.4, borderRadius: 1 }}>
-                      {detalle.idUsuario}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="#6B7A8D" fontWeight={600}>Estado</Typography>
+                    <Typography variant="body2" color="#6B7A8D" fontWeight={600}>Estado Factura</Typography>
                     <Chip label={detalle.estado ?? '—'} size="small"
                       sx={{ bgcolor: (ESTADO_STYLES[detalle.estado] ?? { bg: 'rgba(107,119,141,0.1)' }).bg, color: (ESTADO_STYLES[detalle.estado] ?? { color: '#6B7A8D' }).color, fontWeight: 700, fontSize: 11 }} />
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="#6B7A8D" fontWeight={600}>Autorizada</Typography>
+                    <Typography variant="body2" color="#6B7A8D" fontWeight={600}>Autorizada por SRI</Typography>
                     {autorizada === null
                       ? <Typography variant="caption" color="#6B7A8D">—</Typography>
                       : <Chip label={autorizada ? 'Sí' : 'No'} size="small"

@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Chip, IconButton,
   Alert, CircularProgress, Tooltip, Skeleton, Avatar,
   TextField, Button, InputAdornment, Dialog, DialogContent,
-  MenuItem, Select, FormControl, InputLabel,
+  MenuItem, Select, FormControl, InputLabel, TablePagination,
 } from '@mui/material';
 import {
   Refresh, PeopleOutlined, SearchOutlined, ClearOutlined,
   EditOutlined, CloseOutlined, PersonOffOutlined, PersonAddOutlined,
 } from '@mui/icons-material';
 import { useApi } from '../hooks/useApi';
-import { getUsuarios, getUsuarioPorCedula, updateUsuario, desactivarUsuario, activarUsuario } from '../api/usuarios';
+import { getUsuarios, getUsuariosInactivos, getUsuarioPorCedula, updateUsuario, desactivarUsuario, activarUsuario } from '../api/usuarios';
+import { useContingency } from '../auth/ContingencyContext';
 
 const TEAL = 'linear-gradient(135deg, #1e6b7a 0%, #2a7f8f 45%, #246e7c 100%)';
 const TEAL_SOLID = '#2a7f8f';
@@ -79,12 +80,58 @@ function PageHeader({ title, subtitle, icon, count, onRefresh, loading, onNew })
 
 const EMPTY_EDIT = { nombreCompleto: '', cedula: '', telefono: '', direccion: '', rol: 'USUARIO', estado: true };
 
+const getTodosLosUsuariosCombined = async () => {
+  const [activos, inactivos] = await Promise.all([
+    getUsuarios(),
+    getUsuariosInactivos()
+  ]);
+  return {
+    data: [
+      ...activos.data.map(u => ({ ...u, estado: true })),
+      ...inactivos.data.map(u => ({ ...u, estado: false }))
+    ]
+  };
+};
+
 export default function UsuariosPage() {
-  const { data: usuarios, loading, error, refresh } = useApi(getUsuarios);
+  const { data: usuarios, loading, error, refresh } = useApi(getTodosLosUsuariosCombined);
+  const { isContingency } = useContingency();
   const [snack, setSnack] = useState({ msg: '', type: 'success' });
   const [togglingId, setTogglingId] = useState(null);
 
-  const handleToggleEstado = async (u) => {
+  // Estados para búsqueda por nombre/cédula, filtro de estado y paginación
+  const [cedulaFiltro, setCedulaFiltro] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('TODOS'); // 'TODOS' | 'ACTIVOS' | 'INACTIVOS'
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+
+  // Estado para el modal de confirmación personalizado
+  const [confirmDlg, setConfirmDlg] = useState({ open: false, title: '', message: '', onConfirm: null });
+
+  const handleConfirmToggle = (u) => {
+    if (isContingency) {
+      setSnack({ msg: 'NO SE PUEDE REALIZAR ESTA ACCIÓN PORQUE EL SISTEMA ESTÁ EN CONTINGENCIA', type: 'error' });
+      return;
+    }
+    const isActivating = !u.estado;
+    const title = isActivating ? 'Activar Usuario' : 'Desactivar Usuario';
+    const message = isActivating
+      ? `¿Estás seguro de que deseas volver a activar al usuario "${u.nombreCompleto}"?`
+      : `¿Estás seguro de que deseas desactivar al usuario "${u.nombreCompleto}"?`;
+
+    setConfirmDlg({
+      open: true,
+      title,
+      message,
+      onConfirm: () => executeToggleEstado(u)
+    });
+  };
+
+  const executeToggleEstado = async (u) => {
+    if (isContingency) {
+      setSnack({ msg: 'NO SE PUEDE REALIZAR ESTA ACCIÓN PORQUE EL SISTEMA ESTÁ EN CONTINGENCIA', type: 'error' });
+      return;
+    }
     setTogglingId(u.idUsuario);
     try {
       if (u.estado) {
@@ -107,6 +154,10 @@ export default function UsuariosPage() {
   const [saving, setSaving] = useState(false);
 
   const openEditDialog = (u) => {
+    if (isContingency) {
+      setSnack({ msg: 'NO SE PUEDE REALIZAR ESTA ACCIÓN PORQUE EL SISTEMA ESTÁ EN CONTINGENCIA', type: 'error' });
+      return;
+    }
     setEditTarget(u);
     setEditForm({
       nombreCompleto: u.nombreCompleto ?? '',
@@ -133,48 +184,52 @@ export default function UsuariosPage() {
   };
 
   const handleEdit = async () => {
+    if (isContingency) {
+      setEditError('NO SE PUEDE REALIZAR ESTA ACCIÓN PORQUE EL SISTEMA ESTÁ EN CONTINGENCIA');
+      return;
+    }
     const err = validateEdit();
     if (err) { setEditError(err); return; }
     setSaving(true); setEditError('');
     try {
-      // PUT con todos los campos incluyendo estado
       await updateUsuario(editTarget.idUsuario, {
         nombreCompleto: editForm.nombreCompleto,
         cedula: editForm.cedula,
         telefono: editForm.telefono,
         direccion: editForm.direccion,
-        rol: editForm.rol,
       });
 
       setOpenEdit(false);
       setSnack({ msg: 'Usuario actualizado correctamente.', type: 'success' });
       refresh();
-      if (usuarioFiltrado) setUsuarioFiltrado({ ...usuarioFiltrado, ...editForm });
     } catch (err) {
       setEditError(err?.response?.data?.message ?? 'Error al actualizar el usuario.');
     } finally { setSaving(false); }
   };
 
-  const [cedulaFiltro, setCedulaFiltro] = useState('');
-  const [usuarioFiltrado, setUsuarioFiltrado] = useState(null);
-  const [filtroLoading, setFiltroLoading] = useState(false);
-  const [filtroError, setFiltroError] = useState('');
+  const listaVisible = useMemo(() => {
+    if (!usuarios) return [];
+    return usuarios.filter((u) => {
+      // Ocultar administradores en la tabla del frontend
+      if (u.rol === 'ADMIN') return false;
 
-  const buscarPorCedula = async () => {
-    if (!cedulaFiltro.trim()) { setUsuarioFiltrado(null); setFiltroError(''); return; }
-    setFiltroLoading(true); setFiltroError('');
-    try {
-      const res = await getUsuarioPorCedula(cedulaFiltro.trim());
-      setUsuarioFiltrado(res.data);
-    } catch {
-      setFiltroError(`No se encontró un usuario con cédula ${cedulaFiltro}.`);
-      setUsuarioFiltrado(null);
-    } finally { setFiltroLoading(false); }
-  };
+      const term = cedulaFiltro.toLowerCase().trim();
+      const matchesSearch = term === '' || 
+        u.cedula.includes(term) || 
+        u.nombreCompleto.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term);
 
-  const limpiarFiltro = () => { setCedulaFiltro(''); setUsuarioFiltrado(null); setFiltroError(''); };
+      let matchesState = true;
+      if (filtroEstado === 'ACTIVOS') matchesState = u.estado === true;
+      if (filtroEstado === 'INACTIVOS') matchesState = u.estado === false;
 
-  const listaVisible = usuarioFiltrado ? [usuarioFiltrado] : (usuarios ?? []);
+      return matchesSearch && matchesState;
+    });
+  }, [usuarios, cedulaFiltro, filtroEstado]);
+
+  const paginatedList = useMemo(() => {
+    return listaVisible.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [listaVisible, page, rowsPerPage]);
 
 
   return (
@@ -197,33 +252,43 @@ export default function UsuariosPage() {
           </Alert>
         )}
 
-        {/* Filtro por cédula */}
-        <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 8px rgba(42,127,143,0.08)', display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography variant="body2" fontWeight={700} color="#1a2f40" sx={{ minWidth: 120 }}>Buscar por cédula:</Typography>
-          <TextField
-            size="small" placeholder="Ej: 1501185795" value={cedulaFiltro}
-            onChange={(e) => setCedulaFiltro(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && buscarPorCedula()}
-            disabled={filtroLoading}
-            sx={{ width: 200, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchOutlined sx={{ fontSize: 16, color: '#8fa0b0' }} /></InputAdornment> } }}
-          />
-          <Button variant="contained" onClick={buscarPorCedula} disabled={filtroLoading || !cedulaFiltro.trim()}
-            sx={{ background: TEAL, borderRadius: 2, fontWeight: 700, fontSize: 12, px: 2 }}>
-            {filtroLoading ? <CircularProgress size={16} color="inherit" /> : 'Buscar'}
-          </Button>
-          {(usuarioFiltrado || filtroError) && (
-            <Button variant="outlined" startIcon={<ClearOutlined />} onClick={limpiarFiltro}
-              sx={{ borderRadius: 2, fontSize: 12, color: TEAL_SOLID, borderColor: TEAL_SOLID }}>
-              Ver todos
-            </Button>
-          )}
-          {filtroError && <Typography variant="caption" color="error">{filtroError}</Typography>}
-          {usuarioFiltrado && (
-            <Typography variant="caption" color="#2e7d32" fontWeight={600}>
-              Mostrando usuario con cédula {usuarioFiltrado.cedula}
-            </Typography>
-          )}
+        {/* Panel de Búsqueda y Filtro */}
+        <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 8px rgba(42,127,143,0.08)', display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexGrow: 1, minWidth: 260 }}>
+            <Typography variant="body2" fontWeight={700} color="#1a2f40">Buscar:</Typography>
+            <TextField
+              size="small" placeholder="Buscar por nombre o cédula..." value={cedulaFiltro}
+              onChange={(e) => { setCedulaFiltro(e.target.value); setPage(0); }}
+              fullWidth
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              slotProps={{ input: { 
+                startAdornment: <InputAdornment position="start"><SearchOutlined sx={{ fontSize: 16, color: '#8fa0b0' }} /></InputAdornment>,
+                endAdornment: cedulaFiltro && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => { setCedulaFiltro(''); setPage(0); }}>
+                      <ClearOutlined sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              } }}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {['TODOS', 'ACTIVOS', 'INACTIVOS'].map((mode) => (
+              <Chip
+                key={mode}
+                label={mode}
+                clickable
+                onClick={() => { setFiltroEstado(mode); setPage(0); }}
+                sx={{
+                  fontWeight: 700,
+                  bgcolor: filtroEstado === mode ? TEAL_SOLID : 'rgba(0,0,0,0.06)',
+                  color: filtroEstado === mode ? 'white' : '#6B7A8D',
+                  '&:hover': { bgcolor: filtroEstado === mode ? TEAL_SOLID : 'rgba(0,0,0,0.1)' }
+                }}
+              />
+            ))}
+          </Box>
         </Paper>
 
         <Paper sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 2px 12px rgba(42,127,143,0.1)', animation: 'slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s both' }}>
@@ -239,14 +304,14 @@ export default function UsuariosPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {loading ? <SkeletonRows /> : !listaVisible.length ? (
+                {loading ? <SkeletonRows /> : !paginatedList.length ? (
                   <TableRow>
                     <TableCell colSpan={8} sx={{ py: 8, textAlign: 'center' }}>
                       <PeopleOutlined sx={{ fontSize: 48, color: '#c5cdd6', mb: 1.5, display: 'block', mx: 'auto' }} />
                       <Typography variant="body2" color="text.secondary">No hay usuarios registrados</Typography>
                     </TableCell>
                   </TableRow>
-                ) : listaVisible.map((u, idx) => (
+                ) : paginatedList.map((u, idx) => (
                   <TableRow key={u.idUsuario} sx={{
                     bgcolor: idx % 2 === 0 ? 'white' : 'rgba(42,127,143,0.02)',
                     '&:hover': { bgcolor: 'rgba(42,127,143,0.05)', transition: 'background 0.15s' },
@@ -287,14 +352,14 @@ export default function UsuariosPage() {
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Tooltip title="Editar usuario">
-                          <IconButton size="small" onClick={() => openEditDialog(u)}
+                          <IconButton size="small" onClick={() => openEditDialog(u)} disabled={isContingency}
                             sx={{ color: TEAL_SOLID, bgcolor: 'rgba(42,127,143,0.08)', '&:hover': { bgcolor: 'rgba(42,127,143,0.15)', transform: 'scale(1.1)' } }}>
                             <EditOutlined fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title={u.estado ? 'Desactivar usuario' : 'Activar usuario'}>
                           <span>
-                            <IconButton size="small" onClick={() => handleToggleEstado(u)} disabled={togglingId === u.idUsuario}
+                            <IconButton size="small" onClick={() => handleConfirmToggle(u)} disabled={togglingId === u.idUsuario || isContingency}
                               sx={{ color: u.estado ? '#d32f2f' : '#2e7d32', bgcolor: u.estado ? 'rgba(211,47,47,0.08)' : 'rgba(46,125,50,0.08)', '&:hover': { transform: 'scale(1.1)' } }}>
                               {togglingId === u.idUsuario ? <CircularProgress size={16} /> : u.estado ? <PersonOffOutlined fontSize="small" /> : <PersonAddOutlined fontSize="small" />}
                             </IconButton>
@@ -307,7 +372,32 @@ export default function UsuariosPage() {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={listaVisible.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            labelRowsPerPage="Filas por página:"
+          />
         </Paper>
+
+        {/* Modal de confirmación */}
+        <Dialog open={confirmDlg.open} onClose={() => setConfirmDlg({ ...confirmDlg, open: false })} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 3 } } }}>
+          <Box sx={{ p: 3 }}>
+            <Typography variant="h6" fontWeight={700} sx={{ mb: 1.5 }}>{confirmDlg.title}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{confirmDlg.message}</Typography>
+            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
+              <Button onClick={() => setConfirmDlg({ ...confirmDlg, open: false })} variant="outlined" sx={{ borderRadius: 2, borderColor: 'rgba(0,0,0,0.15)', color: '#2e2e2e' }}>Cancelar</Button>
+              <Button onClick={() => { confirmDlg.onConfirm(); setConfirmDlg({ ...confirmDlg, open: false }); }} variant="contained" sx={{ borderRadius: 2, bgcolor: TEAL_SOLID, '&:hover': { opacity: 0.9 } }}>Confirmar</Button>
+            </Box>
+          </Box>
+        </Dialog>
 
         {/* Dialog editar usuario */}
         <Dialog open={openEdit} onClose={() => !saving && setOpenEdit(false)} maxWidth="sm" fullWidth
@@ -331,16 +421,7 @@ export default function UsuariosPage() {
             <TextField label="Teléfono" name="telefono" value={editForm.telefono}
               onChange={handleEditChange} fullWidth sx={{ mb: 2 }} disabled={saving} />
             <TextField label="Dirección" name="direccion" value={editForm.direccion}
-              onChange={handleEditChange} fullWidth sx={{ mb: 2 }} disabled={saving} />
-
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Rol</InputLabel>
-              <Select name="rol" value={editForm.rol} label="Rol"
-                onChange={handleEditChange} disabled={saving}>
-                <MenuItem value="ADMIN">ADMIN</MenuItem>
-                <MenuItem value="USUARIO">USUARIO</MenuItem>
-              </Select>
-            </FormControl>
+              onChange={handleEditChange} fullWidth sx={{ mb: 3 }} disabled={saving} />
 
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 1.2, borderRadius: 2, border: '1px solid rgba(42,127,143,0.15)', bgcolor: 'rgba(42,127,143,0.04)', mb: 3 }}>
               <Box>

@@ -4,6 +4,7 @@ export const loginUsuario = (email, password) =>
   apiClient.post('/api/usuarios/login', { email, password });
 
 export const getUsuarios = () => apiClient.get('/api/usuarios');
+export const getUsuariosInactivos = () => apiClient.get('/api/usuarios/inactivos');
 export const getUsuario = (id) => apiClient.get(`/api/usuarios/${id}`);
 export const getUsuarioPorCedula = (cedula) => apiClient.get(`/api/usuarios/cedula/${cedula}`);
 export const createUsuario = (data) => apiClient.post('/api/usuarios/registro', data);
