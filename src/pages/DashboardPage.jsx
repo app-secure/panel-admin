@@ -105,8 +105,7 @@ export default function DashboardPage() {
   const usuariosActivos  = useMemo(() => (usuarios ?? []).filter((u) => u.estado).length, [usuarios]);
   const totalProductos   = useMemo(() => (productos ?? []).length, [productos]);
   const totalCompras     = useMemo(() => (compras ?? []).length, [compras]);
-  const ingresoTotal     = useMemo(() => (compras ?? []).reduce((s, c) => s + Number(c.totalCompra ?? 0), 0), [compras]);
-  const ingresoConIva    = useMemo(() => ingresoTotal * 1.15, [ingresoTotal]);
+  const ingresoConIva    = useMemo(() => (compras ?? []).reduce((s, c) => s + Number(c.totalCompra ?? 0), 0), [compras]);
 
   // ── Ingresos por mes (últimos 6 meses) ──────────────────────────
   const ingresosPorMes = useMemo(() => {
@@ -186,7 +185,7 @@ export default function DashboardPage() {
               <KpiCard label="Compras totales" sub="Transacciones" value={totalCompras ?? '—'}
                 icon={<ShoppingCartOutlined sx={{ fontSize: 22 }} />} color="#f57c00" bg="rgba(245,124,0,0.1)"
                 onClick={() => navigate('/compras')} delay={0.24} />
-              <KpiCard label={`${fmt(ingresoConIva)} con IVA`} sub="Ingresos totales" value={fmt(ingresoTotal)}
+              <KpiCard label="IVA (15%) Incluido" sub="Ingresos totales" value={fmt(ingresoConIva)}
                 icon={<AttachMoneyOutlined sx={{ fontSize: 22 }} />} color="#7b1fa2" bg="rgba(123,31,162,0.1)"
                 delay={0.32} />
             </Stack>
@@ -195,7 +194,7 @@ export default function DashboardPage() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5}>
               {/* Ingresos por mes */}
               <Box sx={{ flex: 2 }}>
-                <ChartCard title="Ingresos por mes (sin IVA)" delay={0.36}>
+                <ChartCard title="Ingresos por mes" delay={0.36}>
                   {ingresosPorMes.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>Sin datos suficientes</Typography>
                   ) : (

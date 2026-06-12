@@ -276,9 +276,6 @@ export default function ComprasPage() {
                         <Typography variant="body2" fontWeight={700} color="#1a2f40">
                           {c.totalCompra != null ? `$${Number(c.totalCompra).toFixed(2)}` : '—'}
                         </Typography>
-                        <Typography variant="caption" color="#6B7A8D" sx={{ fontSize: 10 }}>
-                          Sin IVA
-                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Chip label={c.estado ?? '—'} size="small"
@@ -440,7 +437,7 @@ export default function ComprasPage() {
                       <Typography variant="caption" color="#6B7A8D">IVA (15%) Incluido</Typography>
                     </Box>
                     <Typography variant="h6" fontWeight={800} color={TEAL_SOLID}>
-                      ${(Number(detalle.totalCompra ?? 0) * 1.15).toFixed(2)}
+                      ${Number(detalle.totalCompra ?? 0).toFixed(2)}
                     </Typography>
                   </Box>
                 </Box>
