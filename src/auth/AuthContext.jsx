@@ -8,7 +8,7 @@ import axios from 'axios';
 import { auth } from '../api/firebase';
 import { loginUsuario } from '../api/usuarios';
 
-const API_BASE = import.meta.env.VITE_API_MASTER;
+const API_BASE = import.meta.env.VITE_API;
 
 const AuthContext = createContext(null);
 const ROL_KEY = 'adminpanel_rol';
