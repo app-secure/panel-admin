@@ -382,6 +382,10 @@ export default function ComprasPage() {
                           <Typography variant="caption" color="#6B7A8D" display="block" sx={{ fontWeight: 600 }}>Dirección</Typography>
                           <Typography variant="body2" color="#1a2f40" fontWeight={600}>{clienteInfo.direccion || '—'}</Typography>
                         </Box>
+                        <Box sx={{ gridColumn: { sm: 'span 2' } }}>
+                          <Typography variant="caption" color="#6B7A8D" display="block" sx={{ fontWeight: 600 }}>Lugar de Entrega (Pedido)</Typography>
+                          <Typography variant="body2" color={TEAL_SOLID} fontWeight={700}>{detalle.lugarEntrega || 'Retiro en Tienda'}</Typography>
+                        </Box>
                       </Box>
                     </Box>
                   ) : (
