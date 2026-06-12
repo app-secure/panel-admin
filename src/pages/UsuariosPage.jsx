@@ -351,12 +351,14 @@ export default function UsuariosPage() {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="Editar usuario">
-                          <IconButton size="small" onClick={() => openEditDialog(u)} disabled={isContingency}
-                            sx={{ color: TEAL_SOLID, bgcolor: 'rgba(42,127,143,0.08)', '&:hover': { bgcolor: 'rgba(42,127,143,0.15)', transform: 'scale(1.1)' } }}>
-                            <EditOutlined fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {u.estado && (
+                          <Tooltip title="Editar usuario">
+                            <IconButton size="small" onClick={() => openEditDialog(u)} disabled={isContingency}
+                              sx={{ color: TEAL_SOLID, bgcolor: 'rgba(42,127,143,0.08)', '&:hover': { bgcolor: 'rgba(42,127,143,0.15)', transform: 'scale(1.1)' } }}>
+                              <EditOutlined fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         <Tooltip title={u.estado ? 'Desactivar usuario' : 'Activar usuario'}>
                           <span>
                             <IconButton size="small" onClick={() => handleConfirmToggle(u)} disabled={togglingId === u.idUsuario || isContingency}

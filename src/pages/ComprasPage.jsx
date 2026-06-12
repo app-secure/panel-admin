@@ -13,7 +13,7 @@ import {
 import { useApi } from '../hooks/useApi';
 import {
   getCompras, getCompra,
-  getFacturacionXml, getFacturacionDescargar, getFacturacionConsultar,
+  getFacturacionXml, getFacturacionDescargar, getFacturacionConsultar, getFacturacionPdf,
 } from '../api/compras';
 import { getUsuario } from '../api/usuarios';
 
@@ -128,7 +128,7 @@ export default function ComprasPage() {
 
   const descargarBlob = (content, tipo) => {
     const isBlob   = content instanceof Blob;
-    const mimeType = tipo === 'xml' ? 'application/xml' : 'text/html';
+    const mimeType = tipo === 'xml' ? 'application/xml' : tipo === 'pdf' ? 'application/pdf' : 'text/html';
     const blob     = isBlob ? content : new Blob([content], { type: mimeType });
     const url      = URL.createObjectURL(blob);
     const link     = document.createElement('a');
@@ -144,6 +144,18 @@ export default function ComprasPage() {
       const { data } = await getFacturacionDescargar(detalle.numeroFactura);
       descargarBlob(data, 'xml');
     } catch { setFacturaError('Error al descargar el XML.'); }
+    finally { setFacturaLoading(''); }
+  };
+
+  const handleDescargarPdf = async () => {
+    setFacturaLoading('dlpdf'); setFacturaError('');
+    try {
+      const { data } = await getFacturacionPdf(detalle.numeroFactura);
+      descargarBlob(data, 'pdf');
+    } catch (err) {
+      console.error(err);
+      setFacturaError('Error al descargar el PDF.');
+    }
     finally { setFacturaLoading(''); }
   };
 
@@ -390,10 +402,11 @@ export default function ComprasPage() {
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" color="#6B7A8D" fontWeight={600}>Autorizada por SRI</Typography>
-                    {autorizada === null
-                      ? <Typography variant="caption" color="#6B7A8D">—</Typography>
-                      : <Chip label={autorizada ? 'Sí' : 'No'} size="small"
-                          sx={{ bgcolor: autorizada ? 'rgba(46,125,50,0.1)' : 'rgba(211,47,47,0.1)', color: autorizada ? '#2e7d32' : '#d32f2f', fontWeight: 700, fontSize: 11 }} />
+                    { (autorizada === true || detalle?.estado === 'ABIERTA')
+                      ? <Chip label="Sí" size="small"
+                          sx={{ bgcolor: 'rgba(46,125,50,0.1)', color: '#2e7d32', fontWeight: 700, fontSize: 11 }} />
+                      : <Chip label="No" size="small"
+                          sx={{ bgcolor: 'rgba(211,47,47,0.1)', color: '#d32f2f', fontWeight: 700, fontSize: 11 }} />
                     }
                   </Box>
                 </Box>
@@ -423,19 +436,11 @@ export default function ComprasPage() {
                 <Box sx={{ px: 1, mb: 3 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Box>
-                      <Typography variant="body1" fontWeight={700} color="#1a2f40">Subtotal</Typography>
-                      <Typography variant="caption" color="#6B7A8D">Sin IVA</Typography>
+                      <Typography variant="body1" fontWeight={700} color="#1a2f40">Total</Typography>
+                      <Typography variant="caption" color="#6B7A8D">IVA (15%) Incluido</Typography>
                     </Box>
                     <Typography variant="h6" fontWeight={800} color={TEAL_SOLID}>
-                      ${Number(detalle.totalCompra ?? 0).toFixed(2)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ mt: 1, px: 1.5, py: 1, borderRadius: 2, bgcolor: 'rgba(46,125,50,0.06)', border: '1px dashed rgba(46,125,50,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="caption" color="#2e7d32" fontWeight={600}>
-                      💡 Precio final con IVA (12%) incluido en la factura generada
-                    </Typography>
-                    <Typography variant="body2" fontWeight={700} color="#2e7d32">
-                      ${(Number(detalle.totalCompra ?? 0) * 1.12).toFixed(2)}
+                      ${(Number(detalle.totalCompra ?? 0) * 1.15).toFixed(2)}
                     </Typography>
                   </Box>
                 </Box>
@@ -453,6 +458,13 @@ export default function ComprasPage() {
                     sx={{ borderRadius: 2, borderColor: TEAL_SOLID, color: TEAL_SOLID, fontWeight: 700, fontSize: 12, '&:hover': { bgcolor: 'rgba(42,127,143,0.06)' } }}>
                     Ver XML
                   </Button>
+                  {detalle?.estado === 'ABIERTA' && (
+                    <Button variant="contained" startIcon={facturaLoading === 'dlpdf' ? <CircularProgress size={14} color="inherit" /> : <DownloadOutlined />}
+                      onClick={handleDescargarPdf} disabled={!!facturaLoading}
+                      sx={{ borderRadius: 2, bgcolor: TEAL_SOLID, color: 'white', fontWeight: 700, fontSize: 12, '&:hover': { bgcolor: '#1e6b7a' } }}>
+                      Descargar PDF
+                    </Button>
+                  )}
                 </Box>
               </>
             )}

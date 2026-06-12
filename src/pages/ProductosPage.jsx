@@ -157,7 +157,19 @@ export default function ProductosPage() {
     return listaVisible.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [listaVisible, page, rowsPerPage]);
 
-  const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    let finalValue = value;
+    if (name === 'nombre') {
+      // Remove invalid characters: \ < > ; + @ . * ' | ¡ ? = : { } $ # ! & [ ] and control chars \n, \r, \t
+      finalValue = finalValue.replace(/[\\+@.*'|¡?=:;{}$#!&[\]<>\n\r\t]/g, '');
+      // Remove double hyphens --
+      while (finalValue.includes('--')) {
+        finalValue = finalValue.replace('--', '');
+      }
+    }
+    setForm((f) => ({ ...f, [name]: finalValue }));
+  };
   const handleSwitch = (e) => setForm((f) => ({ ...f, estado: e.target.checked }));
   const openNew = () => {
     if (isContingency) {
@@ -174,14 +186,24 @@ export default function ProductosPage() {
     setEditTarget(p); setForm(toForm(p)); setFormError(''); setOpenEdit(true);
   };
 
-  const validateProducto = (form) => {
+  const validateProducto = (form, isCreating = false) => {
     if (!form.nombre.trim())                           return 'El nombre del producto es obligatorio.';
     if (form.nombre.trim().length < 2)                 return 'El nombre debe tener al menos 2 caracteres.';
+    if (/([\\+@.*'|¡?=:;{}$#!&[\]<>])|--|[\n\r\t]/.test(form.nombre)) {
+      return 'El nombre del producto no puede contener caracteres especiales (+, @, ., *, \', |, ¡, ?, =, :, ;, {, }, $, #, !, &, [, ], \\, <, >, --) ni saltos de línea/tabulaciones.';
+    }
     if (form.precio === '' || form.precio === null)     return 'El precio es obligatorio.';
     if (isNaN(Number(form.precio)) || Number(form.precio) < 0) return 'El precio debe ser un número mayor o igual a 0.';
     if (form.stock === '' || form.stock === null)       return 'El stock es obligatorio.';
-    if (isNaN(Number(form.stock)) || Number(form.stock) < 0)   return 'El stock debe ser un número mayor o igual a 0.';
-    if (!Number.isInteger(Number(form.stock)))          return 'El stock debe ser un número entero.';
+    
+    const stockVal = Number(form.stock);
+    if (isNaN(stockVal))                                return 'El stock debe ser un número.';
+    if (isCreating) {
+      if (stockVal <= 0)                                return 'El stock debe ser un número mayor a 0.';
+    } else {
+      if (stockVal < 0)                                 return 'El stock debe ser un número mayor o igual a 0.';
+    }
+    if (!Number.isInteger(stockVal))                    return 'El stock debe ser un número entero.';
     if (form.urlImagen && !/^https?:\/\/.+/.test(form.urlImagen.trim())) return 'La URL de imagen debe comenzar con http:// o https://';
     return null;
   };
@@ -191,7 +213,7 @@ export default function ProductosPage() {
       setFormError('NO SE PUEDE REALIZAR ESTA ACCIÓN PORQUE EL SISTEMA ESTÁ EN CONTINGENCIA');
       return;
     }
-    const err = validateProducto(form);
+    const err = validateProducto(form, true);
     if (err) { setFormError(err); return; }
     setSaving(true); setFormError('');
     try {
@@ -209,7 +231,7 @@ export default function ProductosPage() {
       setFormError('NO SE PUEDE REALIZAR ESTA ACCIÓN PORQUE EL SISTEMA ESTÁ EN CONTINGENCIA');
       return;
     }
-    const err = validateProducto(form);
+    const err = validateProducto(form, false);
     if (err) { setFormError(err); return; }
     setSaving(true); setFormError('');
     try {
@@ -360,12 +382,14 @@ export default function ProductosPage() {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="Editar producto">
-                          <IconButton size="small" onClick={() => openEditDialog(p)} disabled={isContingency}
-                            sx={{ color: TEAL_SOLID, bgcolor: 'rgba(42,127,143,0.08)', '&:hover': { bgcolor: 'rgba(42,127,143,0.15)', transform: 'scale(1.1)' } }}>
-                            <EditOutlined fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {p.estado && (
+                          <Tooltip title="Editar producto">
+                            <IconButton size="small" onClick={() => openEditDialog(p)} disabled={isContingency}
+                              sx={{ color: TEAL_SOLID, bgcolor: 'rgba(42,127,143,0.08)', '&:hover': { bgcolor: 'rgba(42,127,143,0.15)', transform: 'scale(1.1)' } }}>
+                              <EditOutlined fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         <Tooltip title={p.estado ? 'Desactivar producto' : 'Activar producto'}>
                           <span>
                             <IconButton size="small" onClick={() => handleConfirmToggle(p)} disabled={togglingId === p.idProducto || isContingency}

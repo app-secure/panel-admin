@@ -9,3 +9,4 @@ export const createCompra = (data) => apiClient.post('/api/compras', data);
 export const getFacturacionXml       = (idCompra) => apiClient.post('/api/facturacion',                  { idCompra }, { responseType: 'text' });
 export const getFacturacionDescargar = (idCompra) => apiClient.post('/api/facturacion/descargar',         { idCompra }, { responseType: 'blob' });
 export const getFacturacionConsultar = (idCompra) => apiClient.get(`/api/facturacion/consultar/${idCompra}`);
+export const getFacturacionPdf       = (idCompra) => apiClient.get(`/api/facturacion/${idCompra}/pdf/descargar`, { responseType: 'blob' });

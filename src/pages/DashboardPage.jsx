@@ -106,7 +106,7 @@ export default function DashboardPage() {
   const totalProductos   = useMemo(() => (productos ?? []).length, [productos]);
   const totalCompras     = useMemo(() => (compras ?? []).length, [compras]);
   const ingresoTotal     = useMemo(() => (compras ?? []).reduce((s, c) => s + Number(c.totalCompra ?? 0), 0), [compras]);
-  const ingresoConIva    = useMemo(() => ingresoTotal * 1.12, [ingresoTotal]);
+  const ingresoConIva    = useMemo(() => ingresoTotal * 1.15, [ingresoTotal]);
 
   // ── Ingresos por mes (últimos 6 meses) ──────────────────────────
   const ingresosPorMes = useMemo(() => {
