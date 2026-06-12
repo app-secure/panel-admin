@@ -31,7 +31,7 @@ export function ContingencyProvider({ children }) {
 
   useEffect(() => {
     checkStatus();
-    const interval = setInterval(checkStatus, 15000); // Consulta cada 15 segundos
+    const interval = setInterval(checkStatus, 5000); // Consulta cada 5 segundos
     return () => clearInterval(interval);
   }, []);
 
