@@ -63,13 +63,21 @@ const fieldSx = {
 };
 
 export default function LoginPage() {
-  const { login, user, isAdmin } = useAuth();
+  const { login, user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  if (authLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', bgcolor: '#1a5f6e' }}>
+        <CircularProgress sx={{ color: 'white' }} />
+      </Box>
+    );
+  }
 
   if (user) return <Navigate to={isAdmin ? '/dashboard' : '/acceso-denegado'} replace />;
 

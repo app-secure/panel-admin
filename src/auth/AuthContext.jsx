@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import axios from 'axios';
 import { auth } from '../api/firebase';
-import { loginUsuario } from '../api/usuarios';
+import { loginUsuario, getUsuario } from '../api/usuarios';
 
 const API_BASE = import.meta.env.VITE_API;
 
@@ -19,13 +19,40 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      if (!firebaseUser) {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        const cachedRol = sessionStorage.getItem(ROL_KEY);
+        if (cachedRol) {
+          setRol(cachedRol);
+          setLoading(false);
+          // Sync in background
+          try {
+            const { data } = await getUsuario(firebaseUser.uid);
+            const freshRol = data.rol ?? 'USUARIO';
+            setRol(freshRol);
+            sessionStorage.setItem(ROL_KEY, freshRol);
+          } catch (err) {
+            console.error('Error syncing user role in background:', err);
+          }
+        } else {
+          try {
+            const { data } = await getUsuario(firebaseUser.uid);
+            const freshRol = data.rol ?? 'USUARIO';
+            setRol(freshRol);
+            sessionStorage.setItem(ROL_KEY, freshRol);
+          } catch (err) {
+            console.error('Error fetching user role:', err);
+          } finally {
+            setLoading(false);
+          }
+        }
+      } else {
+        setUser(null);
         setRol(null);
         sessionStorage.removeItem(ROL_KEY);
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);
