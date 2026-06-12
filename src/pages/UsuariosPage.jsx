@@ -78,6 +78,32 @@ function PageHeader({ title, subtitle, icon, count, onRefresh, loading, onNew })
   );
 }
 
+const validarCedulaEcuatoriana = (cedula) => {
+  if (cedula.length !== 10) return false;
+  
+  const provincia = parseInt(cedula.substring(0, 2), 10);
+  if (provincia < 1 || (provincia > 24 && provincia !== 30)) return false;
+  
+  const tercerDigito = parseInt(cedula.substring(2, 3), 10);
+  if (tercerDigito >= 6) return false;
+  
+  const coeficientes = [2, 1, 2, 1, 2, 1, 2, 1, 2];
+  let suma = 0;
+  
+  for (let i = 0; i < 9; i++) {
+    let valor = parseInt(cedula.charAt(i), 10) * coeficientes[i];
+    if (valor >= 10) {
+      valor -= 9;
+    }
+    suma += valor;
+  }
+  
+  const verificadorCalculado = (suma % 10 === 0) ? 0 : 10 - (suma % 10);
+  const verificadorOriginal = parseInt(cedula.charAt(9), 10);
+  
+  return verificadorCalculado === verificadorOriginal;
+};
+
 const EMPTY_EDIT = { nombreCompleto: '', cedula: '', telefono: '', direccion: '', rol: 'USUARIO', estado: true };
 
 const getTodosLosUsuariosCombined = async () => {
@@ -176,6 +202,16 @@ export default function UsuariosPage() {
     let finalValue = value;
     if (name === 'nombreCompleto') {
       finalValue = finalValue.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]/g, '');
+    } else if (name === 'cedula') {
+      finalValue = finalValue.replace(/\D/g, '').substring(0, 10);
+    } else if (name === 'telefono') {
+      let cleaned = value.replace(/\D/g, '');
+      if (cleaned.length > 0 && !cleaned.startsWith('0')) {
+        cleaned = '';
+      } else if (cleaned.length > 1 && !cleaned.startsWith('09')) {
+        cleaned = '0';
+      }
+      finalValue = cleaned.substring(0, 10);
     }
     setEditForm((f) => ({ ...f, [name]: finalValue }));
   };
@@ -188,8 +224,12 @@ export default function UsuariosPage() {
       return 'El nombre completo solo puede contener letras y espacios.';
     }
     if (!cedula.trim())                       return 'La cédula es obligatoria.';
-    if (!/^\d{10}$/.test(cedula.trim()))      return 'La cédula debe tener exactamente 10 dígitos numéricos.';
-    if (telefono && !/^\d{10}$/.test(telefono.trim())) return 'El teléfono debe tener exactamente 10 dígitos.';
+    if (!validarCedulaEcuatoriana(cedula.trim())) {
+      return 'La cédula ingresada no es una cédula ecuatoriana válida.';
+    }
+    if (telefono && !/^09\d{8}$/.test(telefono.trim())) {
+      return 'El teléfono de celular debe ser ecuatoriano válido (debe empezar con 09 y tener 10 dígitos).';
+    }
     return null;
   };
 
