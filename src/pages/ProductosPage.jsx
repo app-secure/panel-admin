@@ -161,8 +161,8 @@ export default function ProductosPage() {
     const { name, value } = e.target;
     let finalValue = value;
     if (name === 'nombre') {
-      // Remove invalid characters: \ < > ; + @ . * ' | ¡ ? = : { } $ # ! & [ ] and control chars \n, \r, \t
-      finalValue = finalValue.replace(/[\\+@.*'|¡?=:;{}$#!&[\]<>\n\r\t]/g, '');
+      // Remove invalid characters: \ < > ; + @ . * ' | ¡ ? = : { } $ # ! & [ ] % ( ) and control chars \n, \r, \t
+      finalValue = finalValue.replace(/[\\+@.*'|¡?=:;{}$#!&[\]<>\n\r\t%()]/g, '');
       // Remove double hyphens --
       while (finalValue.includes('--')) {
         finalValue = finalValue.replace('--', '');
@@ -189,8 +189,8 @@ export default function ProductosPage() {
   const validateProducto = (form, isCreating = false) => {
     if (!form.nombre.trim())                           return 'El nombre del producto es obligatorio.';
     if (form.nombre.trim().length < 2)                 return 'El nombre debe tener al menos 2 caracteres.';
-    if (/([\\+@.*'|¡?=:;{}$#!&[\]<>])|--|[\n\r\t]/.test(form.nombre)) {
-      return 'El nombre del producto no puede contener caracteres especiales (+, @, ., *, \', |, ¡, ?, =, :, ;, {, }, $, #, !, &, [, ], \\, <, >, --) ni saltos de línea/tabulaciones.';
+    if (/([\\+@.*'|¡?=:;{}$#!&[\]<>%()])|--|[\n\r\t]/.test(form.nombre)) {
+      return 'El nombre del producto no puede contener caracteres especiales (+, @, ., *, \', |, ¡, ?, =, :, ;, {, }, $, #, !, &, [, ], \\, <, >, %, (, ), --) ni saltos de línea/tabulaciones.';
     }
     if (form.precio === '' || form.precio === null)     return 'El precio es obligatorio.';
     if (isNaN(Number(form.precio)) || Number(form.precio) < 0) return 'El precio debe ser un número mayor o igual a 0.';

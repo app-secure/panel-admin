@@ -171,12 +171,22 @@ export default function UsuariosPage() {
     setOpenEdit(true);
   };
 
-  const handleEditChange = (e) => setEditForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    let finalValue = value;
+    if (name === 'nombreCompleto') {
+      finalValue = finalValue.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]/g, '');
+    }
+    setEditForm((f) => ({ ...f, [name]: finalValue }));
+  };
 
   const validateEdit = () => {
     const { nombreCompleto, cedula, telefono } = editForm;
     if (!nombreCompleto.trim())               return 'El nombre completo es obligatorio.';
     if (nombreCompleto.trim().length < 3)     return 'El nombre debe tener al menos 3 caracteres.';
+    if (/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]/.test(nombreCompleto)) {
+      return 'El nombre completo solo puede contener letras y espacios.';
+    }
     if (!cedula.trim())                       return 'La cédula es obligatoria.';
     if (!/^\d{10}$/.test(cedula.trim()))      return 'La cédula debe tener exactamente 10 dígitos numéricos.';
     if (telefono && !/^\d{10}$/.test(telefono.trim())) return 'El teléfono debe tener exactamente 10 dígitos.';
